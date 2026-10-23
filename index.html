@@ -59,6 +59,13 @@ input:focus{border-color:var(--focus)}
 .row:last-child{border-bottom:0}
 .row.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
 .note{color:var(--muted);font-size:13px;margin-top:14px;max-width:60ch}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 14px;text-align:right;font-size:15px;border-bottom:1px solid var(--band)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--muted);font-size:13px}
+.tot td{font-weight:600;border-bottom:0;background:var(--band)}
+.line-out{margin-top:8px;font-size:14px;color:var(--muted)}
+.add:disabled{opacity:.5;cursor:default}
 @media (max-width:380px){.big{font-size:70px}}
 </style>
 </head>
@@ -85,7 +92,15 @@ input:focus{border-color:var(--focus)}
     <div id="scale"></div>
   </section>
 
-  <p class="note">This uses the 13-tier NMFTA density scale in effect since July 19, 2025. It is an estimate from density alone (lb per cubic foot). Your carrier’s final class comes from the NMFC item number for what you’re shipping, and some commodities have a fixed class or special stowability rules. Confirm with your carrier before booking.</p>
+  <section class="scale">
+    <h2>Space used</h2>
+    <table>
+      <thead><tr><th>Pallet size</th><th>Cubic feet</th><th>Linear feet</th></tr></thead>
+      <tbody id="space"></tbody>
+    </table>
+  </section>
+
+  <p class="note">This uses the 13-tier NMFTA density scale in effect since July 19, 2025. It is an estimate from density alone (lb per cubic foot). Your carrier’s final class comes from the NMFC item number for what you’re shipping, and some commodities have a fixed class or special stowability rules. Confirm with your carrier before booking. Linear feet is total floor footprint divided by 8 ft of trailer width; it ignores stacking and loading patterns, so carriers may count it differently.</p>
 </main>
 
 <script>
@@ -108,7 +123,7 @@ input:focus{border-color:var(--focus)}
         field(i,'l','Length ('+lu+')')+field(i,'w','Width ('+lu+')')+field(i,'h','Height ('+lu+')')+
         field(i,'q','Quantity')+'<div class="wide2" style="grid-column:span 2">'+field(i,'wt','Weight each ('+wu+')',true)+'</div>'+
         '</div>';
-      box.appendChild(d);
+      d.insertAdjacentHTML('beforeend','<div class="line-out" id="lo-'+i+'"></div>'); box.appendChild(d);
     });
   }
   function field(i,k,label,bare){
@@ -118,14 +133,24 @@ input:focus{border-color:var(--focus)}
   }
 
   function calc(){
-    var cuft=0, lb=0, any=false;
-    lines.forEach(function(ln){
+    var cuft=0, lb=0, any=false, lft=0, per=[];
+    var ab=$('add'); ab.disabled=lines.length>=10;
+    ab.textContent=lines.length>=10?'Maximum of 10 pallet sizes':'Add another pallet size ('+lines.length+' of 10)';
+    lines.forEach(function(ln,ix){
       var q=num(ln.q), l=num(ln.l), w=num(ln.w), h=num(ln.h), wt=num(ln.wt);
       if(!(q&&l&&w&&h&&wt)) return;
       any=true;
       var li=metric?l/2.54:l, wi=metric?w/2.54:w, hi=metric?h/2.54:h, wl=metric?wt*2.20462:wt;
-      cuft+=q*li*wi*hi/1728; lb+=q*wl;
+      var lc=q*li*wi*hi/1728, ll=q*li*wi/1152; cuft+=lc; lft+=ll; lb+=q*wl; per[ix]={c:lc,l:ll};
     });
+    var rows='', k;
+    for(k=0;k<lines.length;k++){
+      var p=per[k], lo=$('lo-'+k);
+      if(lo) lo.textContent=p?('Volume '+fmt(p.c,2)+' ft³, '+fmt(p.l,1)+' linear ft'):'';
+      rows+='<tr><td>Size '+(k+1)+'</td><td>'+(p?fmt(p.c,2):'–')+'</td><td>'+(p?fmt(p.l,1):'–')+'</td></tr>';
+    }
+    rows+='<tr class="tot"><td>Total</td><td>'+fmt(cuft,2)+'</td><td>'+fmt(lft,1)+'</td></tr>';
+    $('space').innerHTML=rows;
     var out=$('result');
     if(!any){
       out.innerHTML='<div class="empty" style="color:inherit;opacity:.8">Fill in length, width, height, quantity and weight to see the class.</div>';
@@ -165,7 +190,7 @@ input:focus{border-color:var(--focus)}
     var rm=e.target.getAttribute&&e.target.getAttribute('data-rm');
     if(rm!==null&&rm!==undefined){lines.splice(+rm,1);renderLines();calc()}
   });
-  $('add').addEventListener('click',function(){lines.push({q:1,l:'',w:'',h:'',wt:''});renderLines();calc();var f=document.getElementById('f-'+(lines.length-1)+'-l');if(f)f.focus()});
+  $('add').addEventListener('click',function(){if(lines.length>=10)return;lines.push({q:1,l:'',w:'',h:'',wt:''});renderLines();calc();var f=document.getElementById('f-'+(lines.length-1)+'-l');if(f)f.focus()});
   function setUnits(m){
     if(m===metric)return; metric=m;
     $('u-in').setAttribute('aria-pressed',String(!m)); $('u-cm').setAttribute('aria-pressed',String(m));
