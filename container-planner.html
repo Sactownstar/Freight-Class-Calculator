@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Container load planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#14202e; --muted:#5b6978; --line:#cfd6de; --band:#e3e8ee;
+  --accent:#f2b705; --focus:#1f5fbf; --bad:#b3261e;
+  --c0:#1f5fbf; --c1:#d98e04; --c2:#2a9d6f; --c3:#b5473a; --c4:#7a5ab8; --c5:#4a6a7c;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161d; --surface:#18212b; --ink:#e8edf2; --muted:#93a1b0; --line:#2c3947; --band:#222d39;
+    --focus:#6aa4f5; --bad:#ff8a7a;
+    --c0:#6aa4f5; --c1:#f2b705; --c2:#4fc79a; --c3:#e57d6f; --c4:#a98be0; --c5:#8fb0c4; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161d; --surface:#18212b; --ink:#e8edf2; --muted:#93a1b0; --line:#2c3947; --band:#222d39;
+  --focus:#6aa4f5; --bad:#ff8a7a;
+  --c0:#6aa4f5; --c1:#f2b705; --c2:#4fc79a; --c3:#e57d6f; --c4:#a98be0; --c5:#8fb0c4; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font:700 30px/1.1 "Barlow Condensed","Arial Narrow",sans-serif;margin:8px 0 4px}
+.sub{color:var(--muted);margin:0 0 16px;max-width:52ch}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{font:500 15px "Barlow",sans-serif;padding:8px 12px;border:1.5px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+details{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+summary{cursor:pointer;font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.spec{margin-top:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.line{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:12px}
+.line-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
+.line-head button{border:0;background:none;color:var(--muted);font:500 14px "Barlow",sans-serif;cursor:pointer;padding:4px 6px}
+.full{grid-column:span 3}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:3px}
+input{width:100%;font:500 17px "Barlow",sans-serif;padding:9px 10px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+input:focus{border-color:var(--focus)}
+.line-out{margin-top:8px;font-size:14px;color:var(--muted);white-space:pre-line}
+.add{margin-top:12px;width:100%;padding:11px;border:1.5px dashed var(--muted);border-radius:8px;background:transparent;color:var(--ink);font:500 15px "Barlow",sans-serif;cursor:pointer}
+.add:disabled{opacity:.5;cursor:default}
+.result{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.big{font:700 64px/1 "Barlow Condensed","Arial Narrow",sans-serif}
+.big small{font:500 16px "Barlow",sans-serif;color:var(--muted);margin-left:8px}
+.bar{display:flex;height:30px;margin:12px 0 8px;border:1.5px solid var(--ink);border-radius:6px;overflow:hidden;background:var(--band)}
+.bar.over{border-color:var(--bad)}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;background:var(--sw)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.stats .k{font-size:13px;color:var(--muted)}
+.stats b{display:block;font:600 19px "Barlow",sans-serif}
+.msg{margin:12px 0 0;font-weight:500}
+.msg.bad{color:var(--bad)}
+.warn{margin:6px 0 0;font-size:14px;color:var(--bad)}
+.cv{display:block;width:100%;height:auto;margin:12px 0 4px}
+.cfloor{fill:var(--band);stroke:var(--ink);stroke-width:1.5}
+.cv.over .cfloor{stroke:var(--bad)}
+.cu{stroke:var(--surface);stroke-width:.8;opacity:.92}
+.cg{fill:none;stroke-width:1.3;stroke-dasharray:3 2}
+.ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
+.cap{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.note{color:var(--muted);font-size:13px;margin-top:14px;max-width:60ch}
+</style>
+</head>
+<body>
+<main>
+  <h1>Container load planner</h1>
+  <p class="sub">Floor-loaded, no-stack estimate for boxed units like appliances. Enter each product. Add a quantity to plan it, or leave it empty to see how many more will fit in the space left.</p>
+
+  <div class="seg" id="ctype" role="group" aria-label="Container type"></div>
+  <details>
+    <summary>Container specs (inside size, inches and pounds)</summary>
+    <div class="grid spec">
+      <div><label for="sL">Length</label><input id="sL" data-s="L" type="number" inputmode="decimal"></div>
+      <div><label for="sW">Width</label><input id="sW" data-s="W" type="number" inputmode="decimal"></div>
+      <div><label for="sH">Height</label><input id="sH" data-s="H" type="number" inputmode="decimal"></div>
+      <div><label for="sD">Door height</label><input id="sD" data-s="D" type="number" inputmode="decimal"></div>
+      <div class="full" style="grid-column:span 2"><label for="sP">Max cargo weight (lb)</label><input id="sP" data-s="P" type="number" inputmode="decimal"></div>
+    </div>
+  </details>
+
+  <div id="lines"></div>
+  <button type="button" class="add" id="add">Add another product</button>
+  <button type="button" class="add" id="clear">Clear all</button>
+
+  <section class="result" id="result" aria-live="polite"></section>
+
+  <p class="note">Container sizes are typical starting values and vary a little by container and shipping line, so adjust them if yours differ. The default 44,000 lb cargo limit is a common US road weight cap, not the container’s rating. When a product leaves a partial row, the next product is placed in the gap beside it if it fits across the width; if it is deeper than that row, the extra depth is counted. Dunnage, door clearance, weight distribution, and your carrier’s rules aren’t included.</p>
+</main>
+
+<script>
+(function(){
+  var SPEC={
+    '20':{n:'20 ft',L:231,W:92.5,H:94,D:90,P:44000},
+    '40':{n:'40 ft',L:473,W:92.5,H:94,D:90,P:44000},
+    '40hc':{n:'40 ft HC',L:473,W:92.5,H:106,D:101,P:44000},
+    '45hc':{n:'45 ft HC',L:532,W:92.5,H:106,D:101,P:44000}
+  };
+  var ctype='40', S=Object.assign({},SPEC['40']), lines=[blank()], clearTimer;
+  function blank(){return {n:'',l:'',w:'',h:'',wt:'',q:''}}
+  var $=function(id){return document.getElementById(id)};
+  function num(v){var n=parseFloat(v);return isFinite(n)&&n>0?n:0}
+  function fmt(n,p){return Number(n).toLocaleString(undefined,{maximumFractionDigits:p===undefined?1:p})}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+  function renderTypes(){
+    var b=$('ctype'); b.innerHTML='';
+    Object.keys(SPEC).forEach(function(k){
+      var el=document.createElement('button'); el.type='button'; el.textContent=SPEC[k].n;
+      el.setAttribute('aria-pressed',String(k===ctype));
+      el.addEventListener('click',function(){ctype=k;S=Object.assign({},SPEC[k]);renderTypes();fillSpec();calc()});
+      b.appendChild(el);
+    });
+  }
+  function fillSpec(){['L','W','H','D','P'].forEach(function(k){$('s'+k).value=S[k]})}
+
+  function fld(i,k,label,type,cls){
+    var v=lines[i][k]; 
+    return '<div'+(cls?' class="'+cls+'"':'')+'><label for="f'+i+k+'">'+label+'</label><input id="f'+i+k+'" data-i="'+i+'" data-k="'+k+'" '+
+      (type==='text'?'type="text" maxlength="40"':'type="number" inputmode="decimal" min="0" step="any"')+' value="'+esc(v)+'"></div>';
+  }
+  function renderLines(){
+    var box=$('lines'); box.innerHTML='';
+    lines.forEach(function(ln,i){
+      var d=document.createElement('div'); d.className='line';
+      d.innerHTML='<div class="line-head"><span>Product '+(i+1)+'</span>'+(lines.length>1?'<button type="button" data-rm="'+i+'">Remove</button>':'')+'</div>'+
+        '<div class="grid">'+fld(i,'n','Name (optional)','text','full')+
+        fld(i,'l','Length (in)')+fld(i,'w','Width (in)')+fld(i,'h','Height (in)')+
+        '</div><div class="grid2">'+fld(i,'wt','Weight each (lb)')+fld(i,'q','Quantity (optional)')+'</div>'+
+        '<div class="line-out" id="lo-'+i+'"></div>';
+      box.appendChild(d);
+    });
+  }
+
+  function place(f,q,st){
+    var placed=0,used=0,inPart=0,limW=false;
+    var wcap=function(){return f.wt?Math.floor(Math.max(0,st.wt)/f.wt):Infinity};
+    if(st.part&&q>0){
+      var best=null;
+      [{a:f.uw,d:f.ul},{a:f.ul,d:f.uw}].forEach(function(o){
+        var k=Math.floor(st.part.w/o.a), ex=Math.max(0,o.d-st.part.d);
+        if(k<1||ex>st.len) return;
+        k=Math.min(k,wcap(),q);
+        if(k<1) return;
+        if(!best||k>best.k||(k===best.k&&ex<best.ex)) best={k:k,ex:ex,o:o};
+      });
+      if(best){
+        var y0=S.W-st.part.w;
+        for(var j=0;j<best.k;j++) st.rects.push({x:st.part.x,y:y0+j*best.o.a,w:best.o.d,h:best.o.a,i:f.i});
+        placed+=best.k; inPart=best.k; q-=best.k;
+        st.part.w-=best.k*best.o.a; st.part.d=Math.max(st.part.d,best.o.d);
+        st.len-=best.ex; used+=best.ex; st.wt-=best.k*f.wt;
+      }
+    }
+    if(q>0){
+      var byL=Math.floor(Math.max(0,st.len)/f.dp)*f.ac, byW=wcap();
+      var n=Math.min(q,byL,byW);
+      if(n<q&&byW<byL) limW=true;
+      if(n>0){
+        var x0=S.L-st.len, rows=Math.ceil(n/f.ac), len=rows*f.dp, r=n%f.ac;
+        for(var u=0;u<n;u++) st.rects.push({x:x0+Math.floor(u/f.ac)*f.dp,y:(u%f.ac)*f.a,w:f.dp,h:f.a,i:f.i});
+        st.len-=len; used+=len; st.wt-=n*f.wt; placed+=n;
+        st.part=r?{w:S.W-r*f.a,d:f.dp,x:x0+(rows-1)*f.dp}:null;
+      }
+    }
+    return {placed:placed,used:used,inPart:inPart,limW:limW};
+  }
+  function copySt(st){return {len:st.len,wt:st.wt,rects:[],part:st.part?{w:st.part.w,d:st.part.d,x:st.part.x}:null}}
+
+  function graphic(rects,ghost,over){
+    var g='<svg class="cv'+(over?' over':'')+'" viewBox="-2 -2 '+(S.L+4)+' '+(S.W+4)+'" role="img" aria-label="Top view of the container floor"><rect class="cfloor" x="0" y="0" width="'+S.L+'" height="'+S.W+'"/>';
+    rects.forEach(function(r){g+='<rect class="cu" x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" style="fill:var(--c'+(r.i%6)+')"/>'});
+    ghost.forEach(function(r){g+='<rect class="cg" x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" style="stroke:var(--c'+(r.i%6)+')"/>'});
+    return g+'</svg><div class="ends"><span>Front of container</span><span>Doors</span></div>';
+  }
+
+  function calc(){
+    var ab=$('add'); ab.disabled=lines.length>=10;
+    ab.textContent=lines.length>=10?'Maximum of 10 products':'Add another product ('+lines.length+' of 10)';
+    var st={len:S.L,wt:S.P,part:null,rects:[]}, info=[], segs=[], warn=[], tu=0, short=0, shortW=false;
+    lines.forEach(function(ln,i){
+      var o=$('lo-'+i), l=num(ln.l), w=num(ln.w), h=num(ln.h), wt=num(ln.wt), q=Math.floor(num(ln.q));
+      var nm=ln.n||('Product '+(i+1));
+      info[i]=null;
+      if(!(l&&w)){o.textContent='';return}
+      var c1=Math.floor(S.W/w), c2=Math.floor(S.W/l), best=null;
+      if(c1>0) best={ac:c1,dp:l,a:w};
+      if(c2>0&&(!best||w/c2<best.dp/best.ac)) best={ac:c2,dp:w,a:l};
+      if(!best){o.textContent='Too wide for this container.';return}
+      if(h&&h>S.H) warn.push(nm+' is '+fmt(h)+' in tall, taller than the '+fmt(S.H)+' in container.');
+      else if(h&&h>S.D) warn.push(nm+' is '+fmt(h)+' in tall, taller than the '+fmt(S.D)+' in door opening.');
+      var f={o:o,i:i,nm:nm,ac:best.ac,dp:best.dp,a:best.a,uw:w,ul:l,wt:wt,q:q};
+      if(q){
+        f.r=place(f,q,st);
+        tu+=f.r.placed; short+=q-f.r.placed; if(q>f.r.placed&&f.r.limW) shortW=true;
+        segs.push({len:f.r.used,i:i,nm:nm});
+      }
+      info[i]=f;
+    });
+    var tl=S.L-st.len, tw=S.P-st.wt, rem=Math.max(0,st.len), ghost=[], ghostNm='';
+    info.forEach(function(f){
+      if(!f) return;
+      var gs=copySt(st), p=place(f,Infinity,gs), t;
+      if(f.q){
+        var r=f.r;
+        if(r.placed<f.q) t='Only '+fmt(r.placed,0)+' of your '+fmt(f.q,0)+' fit in the space left'+(r.limW?' (weight limit)':'')+'.';
+        else t='Your '+fmt(f.q,0)+': uses '+fmt(r.used/12,1)+' ft'+(f.wt?', '+fmt(f.q*f.wt,0)+' lb':'');
+        if(r.inPart) t+='\n'+fmt(r.inPart,0)+' placed beside the row before it';
+        t+='\nRoom for about '+fmt(p.placed,0)+' more of this'+(p.limW?' (weight limit)':'');
+      } else {
+        ghost=gs.rects; ghostNm=f.nm;
+        var full=Math.floor(S.L/f.dp)*f.ac, fw=f.wt?Math.floor(S.P/f.wt):0;
+        t='Fits about '+fmt(p.placed,0)+' in the space left'+(p.limW?' (weight limit)':'');
+        if(p.inPart) t+='\n'+fmt(p.inPart,0)+' of them beside the last row';
+        t+='\n'+f.ac+' across, '+fmt(f.dp)+' in per row\nEmpty container: '+fmt(full,0)+' by floor'+(fw?', '+fmt(fw,0)+' by weight':'');
+      }
+      f.o.textContent=t;
+    });
+
+    var out=$('result'), wl=warn.map(function(w){return '<p class="warn">'+esc(w)+'</p>'}).join('');
+    var gfx=graphic(st.rects,ghost,short>0);
+    var cap=ghost.length?'<p class="cap">Dashed outline: where '+esc(ghostNm)+' would fit in the space left.</p>':'';
+    if(!segs.length){out.innerHTML=gfx+cap+'<div style="color:var(--muted)">Leave quantity empty to see how many fit in the space left, or enter quantities to plan a load.</div>'+wl;return}
+    var pct=tl/S.L*100, wpct=tw/S.P*100, leg='';
+    segs.forEach(function(s){leg+='<span style="--sw:var(--c'+(s.i%6)+')">'+esc(s.nm)+'</span>'});
+    var msg=short>0?fmt(short,0)+' of your units don’t fit: the container is out of '+(shortW?'weight capacity.':'floor length.'):'Fits, with '+fmt(rem/12,1)+' ft of floor length left.';
+    out.innerHTML='<div class="big">'+fmt(pct,0)+'%<small>of '+S.n+' floor length</small></div>'+gfx+
+      '<div class="legend">'+leg+'</div>'+cap+
+      '<p class="msg'+(short>0?' bad':'')+'">'+msg+'</p>'+
+      '<div class="stats"><div><span class="k">Units placed</span><b>'+fmt(tu,0)+'</b></div>'+
+      '<div><span class="k">Floor used</span><b>'+fmt(tl/12,1)+' / '+fmt(S.L/12,1)+' ft</b></div>'+
+      '<div><span class="k">Weight</span><b>'+fmt(tw,0)+' lb ('+fmt(wpct,0)+'%)</b></div></div>'+wl;
+  }
+
+  document.addEventListener('input',function(e){
+    var t=e.target;
+    if(t.dataset&&t.dataset.k!==undefined){lines[+t.dataset.i][t.dataset.k]=t.value;calc()}
+    else if(t.dataset&&t.dataset.s){S[t.dataset.s]=num(t.value);calc()}
+  });
+  document.addEventListener('click',function(e){
+    var rm=e.target.getAttribute&&e.target.getAttribute('data-rm');
+    if(rm!==null&&rm!==undefined){lines.splice(+rm,1);renderLines();calc()}
+  });
+  $('add').addEventListener('click',function(){
+    if(lines.length>=10)return;
+    lines.push(blank());renderLines();calc();
+    var f=$('f'+(lines.length-1)+'n'); if(f)f.focus();
+  });
+  var clr=$('clear');
+  clr.addEventListener('click',function(){
+    if(clr.dataset.arm){clearTimeout(clearTimer);delete clr.dataset.arm;clr.textContent='Clear all';lines=[blank()];renderLines();calc();return}
+    clr.dataset.arm='1';clr.textContent='Tap again to clear';
+    clearTimer=setTimeout(function(){delete clr.dataset.arm;clr.textContent='Clear all'},3000);
+  });
+
+  renderTypes(); fillSpec(); renderLines(); calc();
+})();
+</script>
+</body>
+</html>
