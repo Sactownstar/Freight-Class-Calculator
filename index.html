@@ -60,11 +60,15 @@ input:focus{border-color:var(--focus)}
 .row.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
 .note{color:var(--muted);font-size:13px;margin-top:14px;max-width:60ch}
 table{width:100%;border-collapse:collapse}
-th,td{padding:7px 14px;text-align:right;font-size:15px;border-bottom:1px solid var(--band)}
+th,td{padding:7px 6px;text-align:right;font-size:14px;border-bottom:1px solid var(--band)}
+th:first-child,td:first-child{padding-left:14px}
+th:last-child,td:last-child{padding-right:14px}
 th:first-child,td:first-child{text-align:left}
 th{font-weight:600;color:var(--muted);font-size:13px}
 .tot td{font-weight:600;border-bottom:0;background:var(--band)}
-.line-out{margin-top:8px;font-size:14px;color:var(--muted)}
+.line-out{margin-top:8px;font-size:14px;color:var(--muted);white-space:pre-line}
+.acts{display:flex;gap:10px}
+.acts .add{width:auto;flex:1}
 .add:disabled{opacity:.5;cursor:default}
 @media (max-width:380px){.big{font-size:70px}}
 </style>
@@ -84,6 +88,10 @@ th{font-weight:600;color:var(--muted);font-size:13px}
 
   <div id="lines"></div>
   <button type="button" class="add" id="add">Add another pallet size</button>
+  <div class="acts">
+    <button type="button" class="add" id="clear">Clear all</button>
+    <button type="button" class="add" id="copy">Copy summary</button>
+  </div>
 
   <section class="result" aria-live="polite" id="result"></section>
 
@@ -93,9 +101,9 @@ th{font-weight:600;color:var(--muted);font-size:13px}
   </section>
 
   <section class="scale">
-    <h2>Space used</h2>
+    <h2>Totals by pallet size</h2>
     <table>
-      <thead><tr><th>Pallet size</th><th>Cubic feet</th><th>Linear feet</th></tr></thead>
+      <thead><tr><th>Size</th><th>Pallets</th><th id="wh">Weight</th><th>Cu ft</th><th>Lin ft</th></tr></thead>
       <tbody id="space"></tbody>
     </table>
   </section>
@@ -106,7 +114,7 @@ th{font-weight:600;color:var(--muted);font-size:13px}
 <script>
 (function(){
   var BANDS=[[50,50],[35,55],[30,60],[22.5,65],[15,70],[12,85],[10,92.5],[8,100],[6,125],[4,175],[2,250],[1,300],[0,400]];
-  var metric=false, lines=[{q:1,l:'',w:'',h:'',wt:''}];
+  var metric=false, lastSum='', lines=[{q:1,l:'',w:'',h:'',wt:''}];
   var $=function(id){return document.getElementById(id)};
 
   function bandIndex(d){for(var i=0;i<BANDS.length;i++){if(d>=BANDS[i][0])return i}return BANDS.length-1}
@@ -141,16 +149,21 @@ th{font-weight:600;color:var(--muted);font-size:13px}
       if(!(q&&l&&w&&h&&wt)) return;
       any=true;
       var li=metric?l/2.54:l, wi=metric?w/2.54:w, hi=metric?h/2.54:h, wl=metric?wt*2.20462:wt;
-      var lc=q*li*wi*hi/1728, ll=q*li*wi/1152; cuft+=lc; lft+=ll; lb+=q*wl; per[ix]={c:lc,l:ll};
+      var lc=q*li*wi*hi/1728, ll=q*li*wi/1152; cuft+=lc; lft+=ll; lb+=q*wl; per[ix]={c:lc,l:ll,w:q*wl,q:q};
     });
-    var rows='', k;
+    var rows='', k, tq=0, sl=[], wu=metric?'kg':'lb', cv=function(x){return metric?x/2.20462:x};
+    $('wh').textContent='Weight ('+wu+')';
     for(k=0;k<lines.length;k++){
       var p=per[k], lo=$('lo-'+k);
-      if(lo) lo.textContent=p?('Volume '+fmt(p.c,2)+' ft³, '+fmt(p.l,1)+' linear ft'):'';
-      rows+='<tr><td>Size '+(k+1)+'</td><td>'+(p?fmt(p.c,2):'–')+'</td><td>'+(p?fmt(p.l,1):'–')+'</td></tr>';
+      var pd=p?p.w/p.c:0, pcl=p?BANDS[bandIndex(pd)][1]:0, lu=metric?' cm':' in', lr=lines[k];
+      if(lo) lo.textContent=p?('Class '+pcl+' at '+fmt(pd,2)+' lb/ft³\nWeight '+fmt(cv(p.w))+' '+wu+', volume '+fmt(p.c,2)+' ft³, '+fmt(p.l,1)+' linear ft'):'';
+      if(p) sl.push('Size '+(k+1)+': '+fmt(p.q,0)+' pallets, '+lr.l+' x '+lr.w+' x '+lr.h+lu+', '+lr.wt+' '+wu+' each, density '+fmt(pd,2)+' lb/cu ft, class '+pcl);
+      if(p) tq+=p.q;
+      rows+='<tr><td>Size '+(k+1)+'</td><td>'+(p?fmt(p.q,0):'–')+'</td><td>'+(p?fmt(cv(p.w)):'–')+'</td><td>'+(p?fmt(p.c,2):'–')+'</td><td>'+(p?fmt(p.l,1):'–')+'</td></tr>';
     }
-    rows+='<tr class="tot"><td>Total</td><td>'+fmt(cuft,2)+'</td><td>'+fmt(lft,1)+'</td></tr>';
+    rows+='<tr class="tot"><td>Total</td><td>'+fmt(tq,0)+'</td><td>'+fmt(cv(lb))+'</td><td>'+fmt(cuft,2)+'</td><td>'+fmt(lft,1)+'</td></tr>';
     $('space').innerHTML=rows;
+    lastSum=any?('Freight summary\n'+sl.join('\n')+'\nTotal: '+fmt(tq,0)+' pallets, '+fmt(cv(lb))+' '+wu+', '+fmt(cuft,2)+' cu ft, '+fmt(lft,1)+' linear ft\nDensity '+fmt(lb/cuft,2)+' lb/cu ft, estimated class '+BANDS[bandIndex(lb/cuft)][1]):'';
     var out=$('result');
     if(!any){
       out.innerHTML='<div class="empty" style="color:inherit;opacity:.8">Fill in length, width, height, quantity and weight to see the class.</div>';
@@ -198,6 +211,19 @@ th{font-weight:600;color:var(--muted);font-size:13px}
   }
   $('u-in').addEventListener('click',function(){setUnits(false)});
   $('u-cm').addEventListener('click',function(){setUnits(true)});
+  var clr=$('clear'), ct;
+  clr.addEventListener('click',function(){
+    if(clr.dataset.arm){clearTimeout(ct);delete clr.dataset.arm;clr.textContent='Clear all';lines=[{q:1,l:'',w:'',h:'',wt:''}];renderLines();calc();return}
+    clr.dataset.arm='1';clr.textContent='Tap again to clear';
+    ct=setTimeout(function(){delete clr.dataset.arm;clr.textContent='Clear all'},3000);
+  });
+  var cp=$('copy');
+  cp.addEventListener('click',function(){
+    var done=function(msg){cp.textContent=msg;setTimeout(function(){cp.textContent='Copy summary'},2000)};
+    if(!lastSum){done('Nothing to copy yet');return}
+    var fb=function(){var t=document.createElement('textarea');t.value=lastSum;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy')}catch(e){}document.body.removeChild(t);done(ok?'Copied':'Copy failed')};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(lastSum).then(function(){done('Copied')},fb)}else{fb()}
+  });
 
   renderLines(); calc();
 })();
