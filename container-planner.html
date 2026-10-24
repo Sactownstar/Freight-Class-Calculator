@@ -61,7 +61,9 @@ input:focus{border-color:var(--focus)}
 .bar i{display:block;height:100%}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px;color:var(--muted)}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;background:var(--sw)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.nav{font-size:15px}
+.nav a{color:var(--focus);font-weight:500}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .stats .k{font-size:13px;color:var(--muted)}
 .stats b{display:block;font:600 19px "Barlow",sans-serif}
 .msg{margin:12px 0 0;font-weight:500}
@@ -79,6 +81,7 @@ input:focus{border-color:var(--focus)}
 </head>
 <body>
 <main>
+  <nav class="nav"><a href="./">← Freight class checker</a></nav>
   <h1>Container load planner</h1>
   <p class="sub">Floor-loaded, no-stack estimate for boxed units like appliances. Enter each product. Add a quantity to plan it, or leave it empty to see how many more will fit in the space left.</p>
 
@@ -192,7 +195,7 @@ input:focus{border-color:var(--focus)}
   function calc(){
     var ab=$('add'); ab.disabled=lines.length>=10;
     ab.textContent=lines.length>=10?'Maximum of 10 products':'Add another product ('+lines.length+' of 10)';
-    var st={len:S.L,wt:S.P,part:null,rects:[]}, info=[], segs=[], warn=[], tu=0, short=0, shortW=false;
+    var st={len:S.L,wt:S.P,part:null,rects:[]}, info=[], segs=[], warn=[], tu=0, short=0, shortW=false, tv=0, noH=false;
     lines.forEach(function(ln,i){
       var o=$('lo-'+i), l=num(ln.l), w=num(ln.w), h=num(ln.h), wt=num(ln.wt), q=Math.floor(num(ln.q));
       var nm=ln.n||('Product '+(i+1));
@@ -204,10 +207,10 @@ input:focus{border-color:var(--focus)}
       if(!best){o.textContent='Too wide for this container.';return}
       if(h&&h>S.H) warn.push(nm+' is '+fmt(h)+' in tall, taller than the '+fmt(S.H)+' in container.');
       else if(h&&h>S.D) warn.push(nm+' is '+fmt(h)+' in tall, taller than the '+fmt(S.D)+' in door opening.');
-      var f={o:o,i:i,nm:nm,ac:best.ac,dp:best.dp,a:best.a,uw:w,ul:l,wt:wt,q:q};
+      var f={o:o,i:i,nm:nm,h:h,ac:best.ac,dp:best.dp,a:best.a,uw:w,ul:l,wt:wt,q:q};
       if(q){
         f.r=place(f,q,st);
-        tu+=f.r.placed; short+=q-f.r.placed; if(q>f.r.placed&&f.r.limW) shortW=true;
+        tu+=f.r.placed; if(h) tv+=f.r.placed*l*w*h/1728; else if(f.r.placed) noH=true; short+=q-f.r.placed; if(q>f.r.placed&&f.r.limW) shortW=true;
         segs.push({len:f.r.used,i:i,nm:nm});
       }
       info[i]=f;
@@ -219,13 +222,13 @@ input:focus{border-color:var(--focus)}
       if(f.q){
         var r=f.r;
         if(r.placed<f.q) t='Only '+fmt(r.placed,0)+' of your '+fmt(f.q,0)+' fit in the space left'+(r.limW?' (weight limit)':'')+'.';
-        else t='Your '+fmt(f.q,0)+': uses '+fmt(r.used/12,1)+' ft'+(f.wt?', '+fmt(f.q*f.wt,0)+' lb':'');
+        else t='Your '+fmt(f.q,0)+': uses '+fmt(r.used/12,1)+' ft'+(f.wt?', '+fmt(f.q*f.wt,0)+' lb':'')+(f.h?', '+fmt(f.q*f.uw*f.ul*f.h/1728,0)+' cu ft':'');
         if(r.inPart) t+='\n'+fmt(r.inPart,0)+' placed beside the row before it';
         t+='\nRoom for about '+fmt(p.placed,0)+' more of this'+(p.limW?' (weight limit)':'');
       } else {
         ghost=gs.rects; ghostNm=f.nm;
         var full=Math.floor(S.L/f.dp)*f.ac, fw=f.wt?Math.floor(S.P/f.wt):0;
-        t='Fits about '+fmt(p.placed,0)+' in the space left'+(p.limW?' (weight limit)':'');
+        t='Fits about '+fmt(p.placed,0)+' in the space left'+(f.h?' ('+fmt(p.placed*f.uw*f.ul*f.h/1728,0)+' cu ft)':'')+(p.limW?', weight limit':'');
         if(p.inPart) t+='\n'+fmt(p.inPart,0)+' of them beside the last row';
         t+='\n'+f.ac+' across, '+fmt(f.dp)+' in per row\nEmpty container: '+fmt(full,0)+' by floor'+(fw?', '+fmt(fw,0)+' by weight':'');
       }
@@ -244,7 +247,9 @@ input:focus{border-color:var(--focus)}
       '<p class="msg'+(short>0?' bad':'')+'">'+msg+'</p>'+
       '<div class="stats"><div><span class="k">Units placed</span><b>'+fmt(tu,0)+'</b></div>'+
       '<div><span class="k">Floor used</span><b>'+fmt(tl/12,1)+' / '+fmt(S.L/12,1)+' ft</b></div>'+
-      '<div><span class="k">Weight</span><b>'+fmt(tw,0)+' lb ('+fmt(wpct,0)+'%)</b></div></div>'+wl;
+      '<div><span class="k">Weight</span><b>'+fmt(tw,0)+' lb ('+fmt(wpct,0)+'%)</b></div>'+
+      '<div><span class="k">Cubic feet</span><b>'+fmt(tv,0)+' cu ft ('+fmt(tv/(S.L*S.W*S.H/1728)*100,0)+'%)</b></div></div>'+
+      (noH?'<p class="cap">Add a height to every product to count all of its cubic feet.</p>':'')+wl;
   }
 
   document.addEventListener('input',function(e){
